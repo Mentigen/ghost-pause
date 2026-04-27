@@ -1,0 +1,12 @@
+[Unit]
+Description=Ghost Pause - pause media players when browser plays audio
+After=pipewire-pulse.service dbus.socket
+Wants=pipewire-pulse.service
+
+[Service]
+ExecStart=/usr/bin/ghost-pause
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target

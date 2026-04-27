@@ -2,6 +2,8 @@
 # https://github.com/github/gitignore/blob/main/community/Golang/Go.AllowList.gitignore
 #
 # Binaries for programs and plugins
+ghost-pause
+main
 *.exe
 *.exe~
 *.dll
@@ -28,5 +30,9 @@ go.work.sum
 .env
 
 # Editor/IDE
-# .idea/
+.idea/
 # .vscode/
+
+# AUR packaging (belongs in a separate AUR repo)
+aur/
+.SRCINFO
