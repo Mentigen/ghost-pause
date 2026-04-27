@@ -7,5 +7,7 @@
     "Brave",
     "Opera",
     "Vivaldi"
-  ]
+  ],
+  "ignore_players": [],
+  "pause_delay_ms": 0
 }

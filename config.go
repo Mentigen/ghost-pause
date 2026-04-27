@@ -8,35 +8,39 @@ import (
 )
 
 type Config struct {
-	TargetApps []string `json:"target_apps"`
+	TargetApps    []string `json:"target_apps"`
+	IgnorePlayers []string `json:"ignore_players"`
+	PauseDelayMs  int      `json:"pause_delay_ms"`
 }
 
-var fallback = []string{"Zen", "Firefox", "Google Chrome", "Chromium", "Brave"}
+var defaultConfig = Config{
+	TargetApps: []string{"Zen", "Firefox", "Google Chrome", "Chromium", "Brave"},
+}
 
-func loadConfig() []string {
-	configDir, err := os.UserConfigDir()
+func loadConfig(path string) Config {
+	if path == "" {
+		configDir, err := os.UserConfigDir()
+		if err != nil {
+			log.Println(err)
+			return defaultConfig
+		}
+		path = filepath.Join(configDir, "ghost-pause/config.json")
+	}
+
+	data, err := os.ReadFile(path)
 	if err != nil {
-		log.Println(err)
-		return fallback
+		log.Println("config not found, using defaults:", err)
+		return defaultConfig
 	}
 
-	path := filepath.Join(configDir, "ghost-pause/config.json")
-
-	file, err := os.ReadFile(path)
-	if err != nil {
-		log.Println("Error reading config file:", err)
-		return fallback
+	var cfg Config
+	if err := json.Unmarshal(data, &cfg); err != nil {
+		log.Println("config parse error, using defaults:", err)
+		return defaultConfig
 	}
 
-	var config Config
-	err = json.Unmarshal(file, &config)
-	if err != nil {
-		log.Println(err)
-		return fallback
+	if len(cfg.TargetApps) == 0 {
+		cfg.TargetApps = defaultConfig.TargetApps
 	}
-
-	if len(config.TargetApps) == 0 {
-		return fallback
-	}
-	return config.TargetApps
+	return cfg
 }

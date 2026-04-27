@@ -53,10 +53,32 @@ If no config file is found, cannot be parsed, or `target_apps` is empty, ghost-p
 }
 ```
 
-The `target_apps` list must contain the exact `application.name` values that PulseAudio reports for your browsers. To find the correct name while a browser is playing audio:
+### `target_apps`
+
+List of `application.name` values that PulseAudio reports for your browsers. To find the correct name while a browser is playing audio:
 
 ```bash
 pactl -f json list sink-inputs | python3 -m json.tool | grep '"application.name"'
+```
+
+### `ignore_players`
+
+List of substrings to match against MPRIS2 D-Bus names (`org.mpris.MediaPlayer2.*`). Matched players will never be paused. Matching is case-insensitive.
+
+```json
+{
+  "ignore_players": ["spotify", "mpd"]
+}
+```
+
+### `pause_delay_ms`
+
+How many milliseconds to wait after browser audio starts before pausing players. Useful if browser audio triggers and stops briefly (e.g. notification sounds). Default is `0` (pause immediately).
+
+```json
+{
+  "pause_delay_ms": 1500
+}
 ```
 
 ## Usage
@@ -65,6 +87,27 @@ pactl -f json list sink-inputs | python3 -m json.tool | grep '"application.name"
 
 ```bash
 ghost-pause
+```
+
+### Flags
+
+| Flag | Description |
+|------|-------------|
+| `--version` | Print version and exit |
+| `--config <path>` | Use a custom config file instead of the default |
+
+```bash
+ghost-pause --version
+ghost-pause --config /path/to/config.json
+```
+
+### Commands
+
+While the daemon is running, you can control it without restarting:
+
+```bash
+ghost-pause stop    # disable auto-pausing (players won't be paused)
+ghost-pause start   # re-enable auto-pausing
 ```
 
 ### Run as a systemd user service (recommended)
