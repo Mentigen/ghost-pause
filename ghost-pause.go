@@ -22,10 +22,17 @@ import (
 var version = "dev"
 
 type SinkInput struct {
-	Properties struct {
-		AppName string `json:"application.name"`
-	} `json:"properties"`
+	Index  int  `json:"index"`
+	Mute   bool `json:"mute"`
 	Corked bool `json:"corked"`
+	Properties struct {
+		AppName   string `json:"application.name"`
+		MediaName string `json:"media.name"`
+	} `json:"properties"`
+}
+
+type streamState struct {
+	corked bool
 }
 
 func main() {
@@ -108,6 +115,19 @@ func runDaemon(configPath string) {
 	wasBrowserPlaying := false
 	var pausedApps []string
 
+	prevInputStates := make(map[int]streamState)
+	activeBrowserStreams := make(map[int]bool)
+
+	if initOut, err := exec.Command("pactl", "-f", "json", "list", "sink-inputs").Output(); err == nil {
+		var initInputs []SinkInput
+		if json.Unmarshal(initOut, &initInputs) == nil {
+			for _, inp := range initInputs {
+				prevInputStates[inp.Index] = streamState{corked: inp.Corked}
+			}
+			log.Printf("startup: recorded %d existing sink-inputs as baseline", len(prevInputStates))
+		}
+	}
+
 	for {
 		select {
 		case line, ok := <-lines:
@@ -130,13 +150,36 @@ func runDaemon(configPath string) {
 				continue
 			}
 
-			isBrowserPlaying := false
-			for _, input := range inputs {
-				if slices.Contains(cfg.TargetApps, input.Properties.AppName) && !input.Corked {
-					isBrowserPlaying = true
-					break
+			newInputStates := make(map[int]streamState)
+			for _, inp := range inputs {
+				newInputStates[inp.Index] = streamState{corked: inp.Corked}
+
+				if !slices.Contains(cfg.TargetApps, inp.Properties.AppName) || inp.Mute {
+					continue
+				}
+				prev, seen := prevInputStates[inp.Index]
+				if !inp.Corked {
+					if !seen || prev.corked {
+						log.Printf("browser stream started: app=%q index=%d media=%q", inp.Properties.AppName, inp.Index, inp.Properties.MediaName)
+						activeBrowserStreams[inp.Index] = true
+					}
+				} else {
+					if activeBrowserStreams[inp.Index] {
+						log.Printf("browser stream corked: index=%d", inp.Index)
+					}
+					delete(activeBrowserStreams, inp.Index)
 				}
 			}
+			for id := range prevInputStates {
+				if _, exists := newInputStates[id]; !exists {
+					if activeBrowserStreams[id] {
+						log.Printf("browser stream removed: index=%d", id)
+					}
+					delete(activeBrowserStreams, id)
+				}
+			}
+			prevInputStates = newInputStates
+			isBrowserPlaying := len(activeBrowserStreams) > 0
 
 			if isBrowserPlaying && !wasBrowserPlaying {
 				wasBrowserPlaying = true
@@ -146,6 +189,7 @@ func runDaemon(configPath string) {
 					})
 				} else {
 					pausedApps = pauseOthers(cfg.TargetApps, cfg.IgnorePlayers, conn)
+					log.Printf("paused %d players: %v", len(pausedApps), pausedApps)
 				}
 			} else if !isBrowserPlaying && wasBrowserPlaying {
 				wasBrowserPlaying = false
@@ -153,6 +197,7 @@ func runDaemon(configPath string) {
 					pauseTimer.Stop()
 					pauseTimer = nil
 				}
+				log.Printf("browser stopped, resuming %d players: %v", len(pausedApps), pausedApps)
 				resumeOthers(pausedApps, conn)
 				pausedApps = nil
 			}
